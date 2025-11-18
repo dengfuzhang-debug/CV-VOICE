@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI同声传译 Pro - 终极稳定版</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @keyframes pulse-ring { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
+        .record-btn.recording { animation: pulse-ring 1.5s infinite; background-image: linear-gradient(to right, #ef4444, #f87171); color: white; }
+        .glass-effect { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.3); }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .scroll-container { max-height: 300px; overflow-y: auto; }
+        .speaking-indicator { display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; background: rgba(59, 130, 246, 0.1); border-radius: 12px; font-size: 12px; color: #3B82F6; }
+        .speaking-dot { width: 4px; height: 4px; background: #3B82F6; border-radius: 50%; animation: speakingPulse 1.4s ease-in-out infinite; }
+        @keyframes speakingPulse { 0%, 60%, 100% { transform: scale(1); opacity: 0.5; } 30% { transform: scale(1.3); opacity: 1; } }
+        .permission-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .permission-card { background: white; border-radius: 20px; padding: 40px; max-width: 500px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .start-button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; border-radius: 30px; font-size: 18px; font-weight: bold; border: none; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4); }
+        .voice-option { padding: 8px 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .voice-option:hover { background-color: rgba(99, 102, 241, 0.1); }
+        .voice-option.selected { background-color: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.5); }
+        .engine-option { padding: 10px; border-radius: 6px; cursor: pointer; transition: all 0.2s; margin-bottom: 8px; }
+        .engine-option:hover { background-color: rgba(99, 102, 241, 0.1); }
+        .engine-option.selected { background-color: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.5); }
+    </style>
+</head>
+<body class="min-h-screen gradient-bg">
+    <div id="permissionOverlay" class="permission-overlay">
+        <div class="permission-card">
+            <div class="text-6xl mb-6">🎤</div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">开始同声传译</h2>
+            <p class="text-gray-600 mb-6">点击下方按钮启动AI同声传译系统</p>
+            <button onclick="initializeApp()" class="start-button">
+                <i class="fas fa-play mr-2"></i>开始使用
+            </button>
+        </div>
+    </div>
+    
+    <header class="glass-effect shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-language text-3xl text-purple-600"></i>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">AI同声传译 Pro</h1>
+                    <p class="text-sm text-gray-600">混合发音终极版</p>
+                </div>
+            </div>
+            <button onclick="openSettings()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                <i class="fas fa-cog mr-2"></i>设置
+            </button>
+        </div>
+    </header>
+    
+    <main class="container mx-auto px-4 py-8">
+        <div class="glass-effect rounded-2xl p-8 mb-6">
+            <div class="text-center mb-6">
+                <h3 class="text-lg font-semibold text-gray-800 text-center mb-4">点击任一语言按钮，启动翻译循环</h3>
+                <div class="flex justify-center space-x-6">
+                    <button id="recordBtnZh" onclick="toggleRecording('zh')" class="record-btn p-4 rounded-full bg-white text-blue-600 shadow-lg transition-transform transform hover:scale-105 w-32 h-32 flex flex-col items-center justify-center">
+                        <i class="fas fa-microphone text-4xl mb-2"></i>
+                        <span class="font-semibold">中文输入</span>
+                    </button>
+                    <button id="recordBtnVi" onclick="toggleRecording('vi')" class="record-btn p-4 rounded-full bg-white text-green-600 shadow-lg transition-transform transform hover:scale-105 w-32 h-32 flex flex-col items-center justify-center">
+                        <i class="fas fa-microphone text-4xl mb-2"></i>
+                        <span class="font-semibold">越南语输入</span>
+                    </button>
+                </div>
+                <div id="speakingIndicator" class="speaking-indicator hidden mt-6 mx-auto">
+                    <span class="speaking-dot"></span>
+                    <span class="speaking-dot"></span>
+                    <span class="speaking-dot"></span> 
+                    <span class="ml-2">正在播放翻译...</span>
+                </div>
+            </div>
+            <div class="text-center text-gray-600" id="statusText">请先在"设置"中填写API密钥</div>
+        </div>
+        
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="glass-effect rounded-2xl p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-user mr-2 text-purple-500"></i>原文
+                </h3>
+                <div id="sourceText" class="scroll-container bg-gray-50 rounded-lg p-4 min-h-[200px] text-gray-700">
+                    <p class="text-gray-400">等待语音输入...</p>
+                </div>
+            </div>
+            <div class="glass-effect rounded-2xl p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-language mr-2 text-purple-500"></i>译文
+                </h3>
+                <div id="targetText" class="scroll-container bg-gray-50 rounded-lg p-4 min-h-[200px] text-gray-700">
+                    <p class="text-gray-400">Đang chờ bản dịch...</p>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="glass-effect rounded-2xl p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-cog mr-2"></i>设置
+                </h2>
+                <button onclick="closeSettings()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-robot text-blue-600 mr-2"></i>翻译引擎设置
+                </h3>
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">选择翻译引擎</label>
+                    <div id="translationEngineOptions" class="space-y-2">
+                        <div class="engine-option" data-engine="deepseek">
+                            <div class="flex items-center">
+                                <input type="radio" name="translationEngine" id="engineDeepSeek" value="deepseek" class="mr-2">
+                                <label for="engineDeepSeek" class="cursor-pointer flex-1">
+                                    <div class="font-medium">DeepSeek API</div>
+                                    <div class="text-xs text-gray-500">高质量翻译，需要API密钥</div>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="engine-option" data-engine="google">
+                            <div class="flex items-center">
+                                <input type="radio" name="translationEngine" id="engineGoogle" value="google" class="mr-2">
+                                <label for="engineGoogle" class="cursor-pointer flex-1">
+                                    <div class="font-medium">Google翻译</div>
+                                    <div class="text-xs text-gray-500">无需API密钥，越南语效果佳</div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="deepseekApiSection">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">DeepSeek API Key</label>
+                    <input type="password" id="deepseekApiKey" placeholder="sk-..." class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                </div>
+            </div>
+            
+            <div class="mb-6 p-4 bg-purple-50 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-volume-up text-purple-600 mr-2"></i>中文语音设置
+                </h3>
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">语音选择</label>
+                    <div id="zhVoiceOptions" class="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                        <!-- 语音选项将通过JS动态加载 -->
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">语速</label>
+                        <input type="range" id="zhRate" min="0.5" max="1.5" step="0.1" value="0.9" class="w-full">
+                        <span id="zhRateValue" class="text-xs text-gray-500">0.9</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">音调</label>
+                        <input type="range" id="zhPitch" min="0.5" max="1.5" step="0.1" value="1.0" class="w-full">
+                        <span id="zhPitchValue" class="text-xs text-gray-500">1.0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mb-6 p-4 bg-green-50 rounded-lg">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">
+                    <i class="fas fa-comment-dots text-green-600 mr-2"></i>越南语语音设置
+                </h3>
+                <div class="mb-3">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">语音引擎</label>
+                    <div class="space-y-2">
+                        <div class="engine-option" data-vi-engine="browser">
+                            <div class="flex items-center">
+                                <input type="radio" name="viVoiceEngine" id="viEngineBrowser" value="browser" class="mr-2">
+                                <label for="viEngineBrowser" class="cursor-pointer flex-1">
+                                    <div class="font-medium">浏览器内置语音</div>
+                                    <div class="text-xs text-gray-500">使用系统自带的越南语语音</div>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="engine-option" data-vi-engine="google">
+                            <div class="flex items-center">
+                                <input type="radio" name="viVoiceEngine" id="viEngineGoogle" value="google" class="mr-2">
+                                <label for="viEngineGoogle" class="cursor-pointer flex-1">
+                                    <div class="font-medium">Google翻译语音</div>
+                                    <div class="text-xs text-gray-500">高质量越南语发音，推荐</div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="viBrowserVoiceSection">
+                    <div class="mb-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">语音选择</label>
+                        <div id="viVoiceOptions" class="space-y-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                            <!-- 语音选项将通过JS动态加载 -->
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">语速</label>
+                            <input type="range" id="viRate" min="0.5" max="1.5" step="0.1" value="0.8" class="w-full">
+                            <span id="viRateValue" class="text-xs text-gray-500">0.8</span>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">音调</label>
+                            <input type="range" id="viPitch" min="0.5" max="1.5" step="0.1" value="1.0" class="w-full">
+                            <span id="viPitchValue" class="text-xs text-gray-500">1.0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 p-2 bg-yellow-50 rounded text-xs text-gray-600">
+                    <i class="fas fa-info-circle text-yellow-500 mr-1"></i>
+                    越南语有6个声调，Google翻译语音效果更佳
+                </div>
+            </div>
+            
+            <div class="mb-6">
+                <div class="flex items-center justify-between py-2">
+                    <span class="text-sm text-gray-600">自动播放翻译</span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="autoPlayToggle" class="sr-only peer" checked>
+                        <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="flex space-x-3">
+                <button onclick="saveSettings()" class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                    <i class="fas fa-save mr-2"></i>保存设置
+                </button>
+                <button onclick="closeSettings()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast" class="fixed bottom-4 right-4 hidden z-50">
+        <div class="glass-effect rounded-lg px-6 py-3 shadow-lg flex items-center space-x-3">
+            <i id="toastIcon" class="fas fa-check-circle text-green-500"></i>
+            <span id="toastMessage" class="text-gray-700"></span>
+        </div>
+    </div>
+
+<script>
+    let isRecording = false, isProcessing = false;
+    let currentRecordingLang = null;
+    let chineseRecognition, vietnameseRecognition;
+    let recognitionPauseTimer = null;
+    const RECOGNITION_PAUSE_THRESHOLD = 800; // 800ms的停顿判断
+    let zhVoices = [], viVoices = [];
+    let selectedZhVoice = null, selectedViVoice = null;
+    let translationEngine = 'deepseek'; // 默认使用DeepSeek
+    let viVoiceEngine = 'browser'; // 默认使用浏览器语音
+
+    async function initializeApp() {
+        document.getElementById('permissionOverlay').style.display = 'none';
+        loadSettings();
+        loadVoices();
+        initializeSpeechRecognition();
+        
+        // 监听语音列表变化
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+    }
+
+    function loadVoices() {
+        if ('speechSynthesis' in window) {
+            const voices = window.speechSynthesis.getVoices();
+            
+            // 筛选中文语音
+            zhVoices = voices.filter(voice => 
+                voice.lang.includes('zh') || 
+                voice.lang.includes('CN') || 
+                voice.name.includes('Chinese')
+            );
+            
+            // 筛选越南语语音
+            viVoices = voices.filter(voice => 
+                voice.lang.includes('vi') || 
+                voice.lang.includes('VN') || 
+                voice.name.includes('Vietnamese')
+            );
+            
+            // 如果没有找到越南语语音，尝试使用其他东南亚语言作为备选
+            if (viVoices.length === 0) {
+                viVoices = voices.filter(voice => 
+                    voice.lang.includes('th') || // 泰语
+                    voice.lang.includes('id') || // 印尼语
+                    voice.lang.includes('ms')    // 马来语
+                );
+            }
+            
+            // 更新UI中的语音选项
+            updateVoiceOptions();
+            
+            // 如果已保存了语音选择，应用它们
+            applySavedVoiceSelection();
+        }
+    }
+
+    function updateVoiceOptions() {
+        // 更新中文语音选项
+        const zhContainer = document.getElementById('zhVoiceOptions');
+        zhContainer.innerHTML = '';
+        
+        if (zhVoices.length === 0) {
+            zhContainer.innerHTML = '<p class="text-gray-500 text-sm">未找到中文语音</p>';
+        } else {
+            zhVoices.forEach((voice, index) => {
+                const option = document.createElement('div');
+                option.className = 'voice-option';
+                option.innerHTML = `
+                    <div class="flex items-center">
+                        <input type="radio" name="zhVoice" id="zhVoice${index}" value="${index}" class="mr-2">
+                        <label for="zhVoice${index}" class="cursor-pointer flex-1">
+                            <div class="font-medium">${voice.name}</div>
+                            <div class="text-xs text-gray-500">${voice.lang} (${voice.localService ? '本地' : '在线'})</div>
+                        </label>
+                    </div>
+                `;
+                option.addEventListener('click', () => selectZhVoice(index));
+                zhContainer.appendChild(option);
+            });
+        }
+        
+        // 更新越南语语音选项
+        const viContainer = document.getElementById('viVoiceOptions');
+        viContainer.innerHTML = '';
+        
+        if (viVoices.length === 0) {
+            viContainer.innerHTML = '<p class="text-gray-500 text-sm">未找到越南语语音</p>';
+        } else {
+            viVoices.forEach((voice, index) => {
+                const option = document.createElement('div');
+                option.className = 'voice-option';
+                option.innerHTML = `
+                    <div class="flex items-center">
+                        <input type="radio" name="viVoice" id="viVoice${index}" value="${index}" class="mr-2">
+                        <label for="viVoice${index}" class="cursor-pointer flex-1">
+                            <div class="font-medium">${voice.name}</div>
+                            <div class="text-xs text-gray-500">${voice.lang} (${voice.localService ? '本地' : '在线'})</div>
+                        </label>
+                    </div>
+                `;
+                option.addEventListener('click', () => selectViVoice(index));
+                viContainer.appendChild(option);
+            });
+        }
+    }
+
+    function selectZhVoice(index) {
+        selectedZhVoice = zhVoices[index];
+        document.querySelectorAll('#zhVoiceOptions .voice-option').forEach((el, i) => {
+            if (i === index) {
+                el.classList.add('selected');
+                document.getElementById(`zhVoice${index}`).checked = true;
+            } else {
+                el.classList.remove('selected');
+            }
+        });
+    }
+
+    function selectViVoice(index) {
+        selectedViVoice = viVoices[index];
+        document.querySelectorAll('#viVoiceOptions .voice-option').forEach((el, i) => {
+            if (i === index) {
+                el.classList.add('selected');
+                document.getElementById(`viVoice${index}`).checked = true;
+            } else {
+                el.classList.remove('selected');
+            }
+        });
+    }
+
+    function applySavedVoiceSelection() {
+        const savedZhVoiceIndex = localStorage.getItem('selectedZhVoiceIndex');
+        const savedViVoiceIndex = localStorage.getItem('selectedViVoiceIndex');
+        
+        if (savedZhVoiceIndex !== null && zhVoices[parseInt(savedZhVoiceIndex)]) {
+            selectZhVoice(parseInt(savedZhVoiceIndex));
+        } else if (zhVoices.length > 0) {
+            // 默认选择第一个中文语音
+            selectZhVoice(0);
+        }
+        
+        if (savedViVoiceIndex !== null && viVoices[parseInt(savedViVoiceIndex)]) {
+            selectViVoice(parseInt(savedViVoiceIndex));
+        } else if (viVoices.length > 0) {
+            // 默认选择第一个越南语语音
+            selectViVoice(0);
+        }
+    }
+
+    function initializeSpeechRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) { 
+            showToast('浏览器不支持语音识别', 'error'); 
+            return; 
+        }
+        chineseRecognition = createRecognition('zh-CN');
+        vietnameseRecognition = createRecognition('vi-VN');
+    }
+
+    function createRecognition(langCode) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = langCode;
+        recognition.onresult = handleRecognitionResult;
+        recognition.onerror = (e) => { 
+            if (e.error !== 'aborted' && e.error !== 'no-speech') {
+                console.error(`${langCode} 识别错误:`, e.error);
+                stopAll();
+            }
+        };
+        recognition.onend = () => {
+            if (isRecording && currentRecordingLang) {
+                // 如果仍在录音状态，重新启动识别
+                setTimeout(() => {
+                    if (isRecording && currentRecordingLang) {
+                        const recognition = currentRecordingLang === 'zh' ? chineseRecognition : vietnameseRecognition;
+                        try {
+                            recognition.start();
+                        } catch(e) {
+                            console.error("重启识别失败:", e);
+                        }
+                    }
+                }, 100);
+            }
+        };
+        return recognition;
+    }
+
+    function toggleRecording(lang) {
+        if (isProcessing) { 
+            showToast('正在处理，请稍候...', 'info'); 
+            return; 
+        }
+        if (isRecording && currentRecordingLang === lang) {
+            stopAll();
+        } else {
+            startLoop(lang);
+        }
+    }
+
+    function startLoop(lang) {
+        stopAll(true);
+        currentRecordingLang = lang;
+        startRecording();
+    }
+    
+    function startRecording() {
+        if (!currentRecordingLang) return;
+        isRecording = true;
+        updateStatus(`正在聆听${currentRecordingLang === 'zh' ? '中文' : '越南语'}...`);
+        updateButtonUI(currentRecordingLang, true);
+        const recognition = currentRecordingLang === 'zh' ? chineseRecognition : vietnameseRecognition;
+        try { 
+            recognition.start(); 
+        } catch(e) { 
+            console.error("启动识别失败:", e); 
+        }
+    }
+
+    function stopAll(silently = false) {
+        isRecording = false;
+        currentRecordingLang = null;
+        try { 
+            if (chineseRecognition) chineseRecognition.stop(); 
+            if (vietnameseRecognition) vietnameseRecognition.stop(); 
+        } catch (e) {}
+        clearTimeout(recognitionPauseTimer);
+        updateButtonUI('zh', false); 
+        updateButtonUI('vi', false);
+        if (!silently) updateStatus('准备就绪');
+    }
+
+    function updateButtonUI(lang, isActive) {
+        const btn = document.getElementById(`recordBtn${lang === 'zh' ? 'Zh' : 'Vi'}`);
+        if (isActive) {
+            btn.classList.add('recording');
+            btn.querySelector('i').className = 'fas fa-stop text-4xl mb-2';
+        } else {
+            btn.classList.remove('recording');
+            btn.querySelector('i').className = 'fas fa-microphone text-4xl mb-2';
+        }
+    }
+
+    function handleRecognitionResult(event) {
+        clearTimeout(recognitionPauseTimer);
+        let currentTranscript = "";
+        let isFinal = false;
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentTranscript += event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                isFinal = true;
+            }
+        }
+        
+        updateSourceTextLive(currentTranscript);
+        
+        if (isFinal) {
+            const engine = currentRecordingLang === 'zh' ? chineseRecognition : vietnameseRecognition;
+            try { engine.stop(); } catch(e) {}
+            processAndTranslate(currentTranscript.trim());
+        } else {
+            // 设置暂停检测
+            recognitionPauseTimer = setTimeout(() => {
+                if (currentTranscript.trim()) {
+                    const engine = currentRecordingLang === 'zh' ? chineseRecognition : vietnameseRecognition;
+                    try { engine.stop(); } catch(e) {}
+                    processAndTranslate(currentTranscript.trim());
+                }
+            }, RECOGNITION_PAUSE_THRESHOLD);
+        }
+    }
+    
+    async function processAndTranslate(text) {
+        if (isProcessing) return; 
+        isProcessing = true;
+        isRecording = false;
+        updateButtonUI(currentRecordingLang, false);
+        const processLang = currentRecordingLang;
+        updateStatus('识别完成，正在翻译...');
+        const targetLang = processLang === 'zh' ? 'vi' : 'zh';
+        try {
+            const translatedText = await getTranslation(text, targetLang);
+            addNewSourceEntry(text);
+            if (translatedText) {
+                addNewTranslationEntry(translatedText);
+                if (document.getElementById('autoPlayToggle').checked) {
+                    await speak(translatedText, targetLang);
+                }
+            }
+        } finally {
+            isProcessing = false;
+            updateStatus('准备就绪');
+            const nextLang = processLang === 'zh' ? 'vi' : 'zh';
+            startLoop(nextLang);
+        }
+    }
+
+    async function getTranslation(text, targetLang) {
+        if (translationEngine === 'google') {
+            return await getGoogleTranslation(text, targetLang);
+        } else {
+            return await getDeepSeekTranslation(text, targetLang);
+        }
+    }
+
+    async function getGoogleTranslation(text, targetLang) {
+        try {
+            // 使用Google翻译的非官方API
+            const sourceLang = targetLang === 'vi' ? 'zh' : 'vi';
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+            
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Google翻译API错误: ${response.status}`);
+            
+            const data = await response.json();
+            // 提取翻译结果
+            let translatedText = '';
+            data[0].forEach(item => {
+                if (item[0]) translatedText += item[0];
+            });
+            
+            return translatedText.trim();
+        } catch (error) {
+            console.error('Google翻译失败:', error);
+            updateStatus('翻译失败，尝试使用DeepSeek');
+            showToast('Google翻译失败，尝试使用DeepSeek', 'warning');
+            // 回退到DeepSeek
+            return await getDeepSeekTranslation(text, targetLang);
+        }
+    }
+
+    async function getDeepSeekTranslation(text, targetLang) {
+        const apiKey = localStorage.getItem('deepseekApiKey');
+        if (!apiKey) { 
+            showToast('请设置DeepSeek API Key', 'warning'); 
+            openSettings(); 
+            return null; 
+        }
+        try {
+            const prompt = `Translate to ${targetLang === 'vi' ? 'Vietnamese' : 'Chinese'}. Provide only the translation without any additional explanations:\n${text}`;
+            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                method: 'POST', 
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${apiKey}` 
+                },
+                body: JSON.stringify({ 
+                    model: 'deepseek-chat', 
+                    messages: [{ role: 'user', content: prompt }] 
+                })
+            });
+            if (!response.ok) throw new Error(`API error! status: ${response.status}`);
+            const data = await response.json();
+            return data.choices[0].message.content.trim();
+        } catch (error) { 
+            updateStatus('翻译失败'); 
+            showToast('翻译失败: ' + error.message, 'error'); 
+            return null; 
+        }
+    }
+
+    function speak(text, lang) {
+        return new Promise((resolve) => {
+            updateStatus('正在合成语音...');
+            document.getElementById('speakingIndicator').classList.remove('hidden');
+            
+            // 如果是越南语且选择了Google语音引擎
+            if (lang === 'vi' && viVoiceEngine === 'google') {
+                speakWithGoogleTTS(text, resolve);
+                return;
+            }
+            
+            // 否则使用浏览器内置语音合成
+            if ('speechSynthesis' in window) {
+                // 取消任何正在进行的语音
+                window.speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                // 设置语言
+                utterance.lang = lang === 'zh' ? 'zh-CN' : 'vi-VN';
+                
+                // 设置选定的语音
+                if (lang === 'zh' && selectedZhVoice) {
+                    utterance.voice = selectedZhVoice;
+                } else if (lang === 'vi' && selectedViVoice) {
+                    utterance.voice = selectedViVoice;
+                }
+                
+                // 从设置中获取语速和音调
+                const rate = lang === 'zh' ? 
+                    parseFloat(document.getElementById('zhRate').value) : 
+                    parseFloat(document.getElementById('viRate').value);
+                const pitch = lang === 'zh' ? 
+                    parseFloat(document.getElementById('zhPitch').value) : 
+                    parseFloat(document.getElementById('viPitch').value);
+                
+                utterance.rate = rate;
+                utterance.pitch = pitch;
+                utterance.volume = 1.0;
+                
+                utterance.onend = () => {
+                    document.getElementById('speakingIndicator').classList.add('hidden');
+                    resolve();
+                };
+                
+                utterance.onerror = (e) => { 
+                    console.error("语音合成错误", e); 
+                    document.getElementById('speakingIndicator').classList.add('hidden');
+                    resolve();
+                };
+                
+                // 在某些浏览器上，需要延迟才能正确启动语音合成
+                setTimeout(() => {
+                    window.speechSynthesis.speak(utterance);
+                }, 100);
+            } else {
+                console.error("浏览器不支持语音合成");
+                document.getElementById('speakingIndicator').classList.add('hidden');
+                resolve();
+            }
+        });
+    }
+
+    function speakWithGoogleTTS(text, resolve) {
+        try {
+            // 使用Google翻译TTS的非官方API
+            const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=vi&client=tw-ob`;
+            
+            // 创建音频元素
+            const audio = new Audio(url);
+            
+            audio.onended = () => {
+                document.getElementById('speakingIndicator').classList.add('hidden');
+                resolve();
+            };
+            
+            audio.onerror = (e) => {
+                console.error("Google TTS错误", e);
+                document.getElementById('speakingIndicator').classList.add('hidden');
+                // 回退到浏览器TTS
+                speakWithBrowser(text, 'vi', resolve);
+            };
+            
+            // 播放音频
+            audio.play().catch(err => {
+                console.error("Google TTS播放失败", err);
+                document.getElementById('speakingIndicator').classList.add('hidden');
+                // 回退到浏览器TTS
+                speakWithBrowser(text, 'vi', resolve);
+            });
+        } catch (error) {
+            console.error("Google TTS初始化失败", error);
+            document.getElementById('speakingIndicator').classList.add('hidden');
+            // 回退到浏览器TTS
+            speakWithBrowser(text, 'vi', resolve);
+        }
+    }
+
+    function speakWithBrowser(text, lang, resolve) {
+        if (!('speechSynthesis' in window)) {
+            console.error("浏览器不支持语音合成");
+            resolve();
+            return;
+        }
+        
+        // 取消任何正在进行的语音
+        window.speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang === 'zh' ? 'zh-CN' : 'vi-VN';
+        
+        // 设置选定的语音
+        if (lang === 'zh' && selectedZhVoice) {
+            utterance.voice = selectedZhVoice;
+        } else if (lang === 'vi' && selectedViVoice) {
+            utterance.voice = selectedViVoice;
+        }
+        
+        // 从设置中获取语速和音调
+        const rate = lang === 'zh' ? 
+            parseFloat(document.getElementById('zhRate').value) : 
+            parseFloat(document.getElementById('viRate').value);
+        const pitch = lang === 'zh' ? 
+            parseFloat(document.getElementById('zhPitch').value) : 
+            parseFloat(document.getElementById('viPitch').value);
+        
+        utterance.rate = rate;
+        utterance.pitch = pitch;
+        utterance.volume = 1.0;
+        
+        utterance.onend = () => {
+            document.getElementById('speakingIndicator').classList.add('hidden');
+            resolve();
+        };
+        
+        utterance.onerror = (e) => { 
+            console.error("浏览器语音合成错误", e); 
+            document.getElementById('speakingIndicator').classList.add('hidden');
+            resolve();
+        };
+        
+        // 在某些浏览器上，需要延迟才能正确启动语音合成
+        setTimeout(() => {
+            window.speechSynthesis.speak(utterance);
+        }, 100);
+    }
+    
+    function addNewSourceEntry(text) {
+         const container = document.getElementById('sourceText');
+        if (container.querySelector('p.text-gray-400')) container.innerHTML = '';
+        const p = document.createElement('p'); p.className = 'mb-2';
+        p.innerHTML = `<span class="text-gray-500 text-sm">${new Date().toLocaleTimeString()}</span><br>${text}`;
+        const liveEntry = container.querySelector('p:last-child');
+        if (liveEntry && liveEntry.querySelector('span').textContent === '正在输入...') {
+            container.replaceChild(p, liveEntry);
+        } else { container.appendChild(p); }
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function updateSourceTextLive(text) {
+        const container = document.getElementById('sourceText');
+        if (container.querySelector('p.text-gray-400')) container.innerHTML = '';
+        container.innerHTML = `<p class="mb-2"><span class="text-gray-500 text-sm">正在输入...</span><br>${text}`;
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function addNewTranslationEntry(text) {
+        const container = document.getElementById('targetText');
+        if (container.querySelector('p.text-gray-400')) container.innerHTML = '';
+        const p = document.createElement('p'); p.className = 'mb-2';
+        p.innerHTML = `<span class="text-gray-500 text-sm">${new Date().toLocaleTimeString()}</span><br>${text}`;
+        container.appendChild(p); container.scrollTop = container.scrollHeight;
+    }
+    
+    function openSettings() { 
+        document.getElementById('settingsModal').classList.remove('hidden'); 
+        loadSettings(); 
+        // 更新滑块显示值
+        document.getElementById('zhRateValue').textContent = document.getElementById('zhRate').value;
+        document.getElementById('zhPitchValue').textContent = document.getElementById('zhPitch').value;
+        document.getElementById('viRateValue').textContent = document.getElementById('viRate').value;
+        document.getElementById('viPitchValue').textContent = document.getElementById('viPitch').value;
+        
+        // 更新翻译引擎选择
+        document.querySelectorAll('.engine-option[data-engine]').forEach(el => {
+            el.classList.remove('selected');
+        });
+        document.querySelector(`.engine-option[data-engine="${translationEngine}"]`).classList.add('selected');
+        document.getElementById(`engine${translationEngine === 'deepseek' ? 'DeepSeek' : 'Google'}`).checked = true;
+        
+        // 更新越南语语音引擎选择
+        document.querySelectorAll('.engine-option[data-vi-engine]').forEach(el => {
+            el.classList.remove('selected');
+        });
+        document.querySelector(`.engine-option[data-vi-engine="${viVoiceEngine}"]`).classList.add('selected');
+        document.getElementById(`viEngine${viVoiceEngine === 'browser' ? 'Browser' : 'Google'}`).checked = true;
+        
+        // 根据选择的越南语语音引擎显示/隐藏相应设置
+        document.getElementById('viBrowserVoiceSection').style.display = viVoiceEngine === 'browser' ? 'block' : 'none';
+        
+        // 根据翻译引擎显示/隐藏API密钥设置
+        document.getElementById('deepseekApiSection').style.display = translationEngine === 'deepseek' ? 'block' : 'none';
+    }
+    
+    function closeSettings() { 
+        document.getElementById('settingsModal').classList.add('hidden'); 
+    }
+    
+    function saveSettings() {
+        // 保存翻译引擎选择
+        translationEngine = document.querySelector('input[name="translationEngine"]:checked').value;
+        localStorage.setItem('translationEngine', translationEngine);
+        
+        // 保存越南语语音引擎选择
+        viVoiceEngine = document.querySelector('input[name="viVoiceEngine"]:checked').value;
+        localStorage.setItem('viVoiceEngine', viVoiceEngine);
+        
+        // 保存DeepSeek API Key
+        localStorage.setItem('deepseekApiKey', document.getElementById('deepseekApiKey').value);
+        
+        // 保存语音选择
+        if (selectedZhVoice) {
+            const zhIndex = zhVoices.indexOf(selectedZhVoice);
+            if (zhIndex !== -1) {
+                localStorage.setItem('selectedZhVoiceIndex', zhIndex.toString());
+            }
+        }
+        
+        if (selectedViVoice) {
+            const viIndex = viVoices.indexOf(selectedViVoice);
+            if (viIndex !== -1) {
+                localStorage.setItem('selectedViVoiceIndex', viIndex.toString());
+            }
+        }
+        
+        // 保存语音参数
+        localStorage.setItem('zhRate', document.getElementById('zhRate').value);
+        localStorage.setItem('zhPitch', document.getElementById('zhPitch').value);
+        localStorage.setItem('viRate', document.getElementById('viRate').value);
+        localStorage.setItem('viPitch', document.getElementById('viPitch').value);
+        
+        showToast('设置已保存', 'success'); 
+        closeSettings();
+    }
+    
+    function loadSettings() {
+        // 加载翻译引擎选择
+        translationEngine = localStorage.getItem('translationEngine') || 'deepseek';
+        
+        // 加载越南语语音引擎选择
+        viVoiceEngine = localStorage.getItem('viVoiceEngine') || 'browser';
+        
+        // 加载DeepSeek API Key
+        document.getElementById('deepseekApiKey').value = localStorage.getItem('deepseekApiKey') || '';
+        
+        // 加载语音参数
+        document.getElementById('zhRate').value = localStorage.getItem('zhRate') || '0.9';
+        document.getElementById('zhPitch').value = localStorage.getItem('zhPitch') || '1.0';
+        document.getElementById('viRate').value = localStorage.getItem('viRate') || '0.8';
+        document.getElementById('viPitch').value = localStorage.getItem('viPitch') || '1.0';
+        
+        if (localStorage.getItem('deepseekApiKey') || translationEngine === 'google') { 
+            updateStatus('准备就绪'); 
+        }
+    }
+    
+    function updateStatus(text) { 
+        document.getElementById('statusText').textContent = text; 
+    }
+    
+    function showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        const icon = document.getElementById('toastIcon');
+        icon.className = `fas ${type === 'success' ? 'fa-check-circle text-green-500' : type === 'error' ? 'fa-exclamation-circle text-red-500' : 'fa-info-circle text-blue-500'}`;
+        document.getElementById('toastMessage').textContent = message;
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+    
+    // 添加事件监听器
+    document.addEventListener('DOMContentLoaded', function() {
+        // 中文语音参数滑块
+        document.getElementById('zhRate').addEventListener('input', function() {
+            document.getElementById('zhRateValue').textContent = this.value;
+        });
+        
+        document.getElementById('zhPitch').addEventListener('input', function() {
+            document.getElementById('zhPitchValue').textContent = this.value;
+        });
+        
+        // 越南语语音参数滑块
+        document.getElementById('viRate').addEventListener('input', function() {
+            document.getElementById('viRateValue').textContent = this.value;
+        });
+        
+        document.getElementById('viPitch').addEventListener('input', function() {
+            document.getElementById('viPitchValue').textContent = this.value;
+        });
+        
+        // 翻译引擎选择
+        document.querySelectorAll('input[name="translationEngine"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'deepseek') {
+                    document.getElementById('deepseekApiSection').style.display = 'block';
+                } else {
+                    document.getElementById('deepseekApiSection').style.display = 'none';
+                }
+            });
+        });
+        
+        // 越南语语音引擎选择
+        document.querySelectorAll('input[name="viVoiceEngine"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'browser') {
+                    document.getElementById('viBrowserVoiceSection').style.display = 'block';
+                } else {
+                    document.getElementById('viBrowserVoiceSection').style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
+</body>
+</html>
